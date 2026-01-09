@@ -142,5 +142,3 @@ For academic and educational use only.
 ````
 
 
-
-devam edelim mi? 😄
