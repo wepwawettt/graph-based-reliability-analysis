@@ -1,3 +1,4 @@
+
 # Graph-Based System Reliability Analysis Tool
 
 This repository contains my undergraduate graduation project developed at **Ankara University – Computer Engineering Department**.  
@@ -12,164 +13,134 @@ The system supports **static reliability**, **time-dependent reliability R(t)**,
 Modern engineering systems consist of interconnected components whose failures are often interdependent.  
 This project models such systems as **graphs** and evaluates system reliability using:
 
-- Analytical reliability theory
-- Inclusion–exclusion principle
-- Monte Carlo simulation
-- Path-based and component-based criticality analysis
-
-The tool enables both **quantitative reliability evaluation** and **qualitative insight** into critical components and degradation behavior.
+- Analytical reliability theory  
+- Inclusion–exclusion principle  
+- Monte Carlo simulation  
+- Path-based and component-based criticality analysis  
 
 ---
 
 ## 🚀 Key Features
 
-- Interactive graph-based system modeling
-- Automatic extraction of **minimal path sets**
-- Static system reliability analysis
-- Time-dependent reliability analysis \( R(t) \)
-- Supported lifetime distributions:
-  - Exponential
-  - Weibull
-  - Log-Normal
-  - Gamma
-  - Log-Logistic
-  - Rayleigh
-  - Gompertz
-- Monte Carlo simulation using analytical path sets
-- Common Cause Failure (CCF) modeling using β-factor
-- System lifetime histogram
-- Path reliability curves
-- Critical interval detection (t₉₀ – t₁₀)
-- Component Criticality Index (CCI)
-- Sensitivity analysis (Tornado chart)
-- Multi-model critical comparison
-- Fully integrated PyQt6 graphical interface
+- Interactive graph-based system modeling  
+- Automatic extraction of **minimal path sets**  
+- Static and dynamic reliability analysis  
+- Time-dependent reliability \( R(t) \)  
+- Multiple lifetime distributions  
+- Monte Carlo simulation  
+- Common Cause Failure (CCF) modeling  
+- Component Criticality Index (CCI)  
+- Sensitivity analysis  
+- PyQt6 GUI  
 
 ---
 
 ## 🧠 Methodology
 
-1. The system is modeled as a graph with components and junctions.
-2. All minimal paths between **Start** and **End** nodes are extracted.
-3. System reliability is derived analytically using the **inclusion–exclusion principle**.
-4. Time-dependent reliability \( R(t) \) is computed from component lifetime distributions.
-5. Monte Carlo simulation generates system lifetime samples using the same path sets.
-6. Analytical and simulation-based results are compared and validated.
-7. Criticality and robustness analyses are performed at system, path, and component levels.
-
-> Monte Carlo simulation is intentionally performed **after analytical path extraction** to ensure methodological consistency.
+1. Graph-based system modeling  
+2. Minimal path extraction  
+3. Analytical reliability (inclusion–exclusion)  
+4. Time-dependent reliability computation  
+5. Monte Carlo validation  
+6. Criticality and robustness analysis  
 
 ---
 
 ## 📊 Monte Carlo Simulation
 
-Monte Carlo simulation produces:
-- System lifetime samples
-- Empirical reliability function:
+Empirical reliability function:
 
 \[
 R_{MC}(t) = P(T_{system} > t)
 \]
-
-These results are used to validate analytical reliability curves and analyze uncertainty.
 
 ---
 
 ## 🖥️ Project Structure
 
 ```text
-├── main.py                # GUI and application logic
-├── distributions.py       # Lifetime distributions and sampling functions
-├── monte_carlo.py         # Monte Carlo simulation engine
-├── critical_analysis.py   # Criticality, robustness and sensitivity analysis
+├── main.py
+├── distributions.py
+├── monte_carlo.py
+├── critical_analysis.py
 ├── README.md
-⚙️ Installation
-Requirements
-Python 3.10 or higher
+```
 
-NumPy
+---
 
-SciPy
+## ⚙️ Installation
 
-SymPy
+### Requirements
 
-Matplotlib
-
-PyQt6
+- Python 3.10 or higher  
+- NumPy  
+- SciPy  
+- SymPy  
+- Matplotlib  
+- PyQt6  
 
 Install dependencies:
 
-bash
-Kodu kopyala
+```bash
 pip install numpy scipy sympy matplotlib pyqt6
-▶️ Usage
+```
+
+---
+
+## ▶️ Usage
+
 Run the application:
 
-bash
-Kodu kopyala
+```bash
 python main.py
-Typical workflow:
+```
 
-Create or load a system model
+Workflow:
+1. Build or load a model  
+2. Select analysis mode  
+3. Run analysis  
+4. Visualize results  
 
-Select analysis mode:
+---
 
-Static Reliability
+## 📈 Example Outputs
 
-Dynamic Reliability R(t)
+- System reliability curve \( R(t) \)  
+- Monte Carlo reliability curve  
+- Lifetime histogram  
+- Critical interval plots  
+- Component Criticality Index  
 
-Monte Carlo Simulation
+---
 
-Define component parameters and connections
+## 🔬 Academic Context
 
-Run analysis
+This project was developed as an **undergraduate graduation project** and follows standard reliability engineering methodologies.
 
-Visualize results and criticality metrics
+---
 
-📈 Example Outputs
-System reliability curve 
-𝑅
-(
-𝑡
-)
-R(t)
+## 🔮 Future Work
 
-Monte Carlo reliability curve
+- Bayesian reliability  
+- Graph Neural Networks  
+- Large-scale optimization  
+- Uncertainty quantification  
 
-System lifetime histogram
+---
 
-Path reliability evolution
+## 👩‍💻 Author
 
-Critical interval plots
+**Selin Ayhan**  
+Computer Engineering  
+Ankara University  
 
-Component Criticality Index (CCI)
+---
 
-Sensitivity tornado charts
+## 📄 License
 
-🔬 Academic Context
-This project was developed as an undergraduate graduation project and follows standard reliability engineering methodologies.
+For academic and educational use only.
+````
 
-It is intended for:
 
-Academic use
 
-Educational demonstrations
-
-Research-oriented extensions
-
-🔮 Future Work
-Bayesian reliability modeling
-
-Graph Neural Networks (GNNs) for reliability prediction
-
-Large-scale system optimization
-
-Confidence interval estimation and uncertainty quantification
-
-👩‍💻 Author
-Selin Ayhan
-Computer Engineering
-Ankara University
-
-📄 License
-This project is provided for academic and educational purposes only.
+devam edelim mi? 😄
