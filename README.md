@@ -1,37 +1,4 @@
 
-```text
-├── README.md
-⚙️ Installation
-Requirements
-Python 3.10 or higher
-NumPy
-SciPy
-...
-```
-
-Bu demek oluyor ki:
-
-* ```text bloğu **kapanmamış**
-  ```
-* `## Installation`, `## Usage` başlıkları **başlık olarak algılanmıyor**
-* GitHub’da **çirkin ve amatör** görünüyor
-
-Ama **çözüm çok basit**.
-
----
-
-## ✅ YAPMAN GEREKEN TEK ŞEY (LÜTFEN DİKKATLE)
-
-1️⃣ README.md içindeki **HER ŞEYİ SİL**
-2️⃣ Aşağıdaki metni **TEK SEFERDE kopyala**
-3️⃣ README.md’ye **TEK SEFERDE yapıştır**
-4️⃣ Kaydet → commit
-
-Başka **hiçbir şey** yapma.
-
----
-
-## ✅ SON VE KESİN README (BUNU AYNEN KOY)
 
 ````markdown
 # Graph-Based System Reliability Analysis Tool
