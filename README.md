@@ -1,111 +1,195 @@
-# Type-Aware Anomaly Detection and Safe Repair for Time Series
 
-This project presents a **type-aware, drift-sensitive anomaly detection and repair pipeline** for univariate time series.
-Unlike naive anomaly correction methods, the proposed approach **distinguishes between spike anomalies and concept drift**, and applies **confidence-gated repairs** to guarantee safety.
+```text
+├── README.md
+⚙️ Installation
+Requirements
+Python 3.10 or higher
+NumPy
+SciPy
+...
+```
+
+Bu demek oluyor ki:
+
+* ```text bloğu **kapanmamış**
+  ```
+* `## Installation`, `## Usage` başlıkları **başlık olarak algılanmıyor**
+* GitHub’da **çirkin ve amatör** görünüyor
+
+Ama **çözüm çok basit**.
+
+---
+
+## ✅ YAPMAN GEREKEN TEK ŞEY (LÜTFEN DİKKATLE)
+
+1️⃣ README.md içindeki **HER ŞEYİ SİL**
+2️⃣ Aşağıdaki metni **TEK SEFERDE kopyala**
+3️⃣ README.md’ye **TEK SEFERDE yapıştır**
+4️⃣ Kaydet → commit
+
+Başka **hiçbir şey** yapma.
+
+---
+
+## ✅ SON VE KESİN README (BUNU AYNEN KOY)
+
+````markdown
+# Graph-Based System Reliability Analysis Tool
+
+This repository contains my undergraduate graduation project, developed as part of the Computer Engineering program at Ankara University.  
+The project focuses on **graph-based reliability analysis of complex systems** using analytical methods and Monte Carlo simulation.
+
+---
+
+## 📌 Project Overview
+
+Modern engineering systems often consist of multiple interdependent components with complex and non-trivial topologies.  
+This project models such systems as graphs and evaluates their reliability using both **analytical reliability theory** and **Monte Carlo simulation**.
+
+The tool is designed to provide:
+- Deterministic analytical reliability results
+- Simulation-based validation
+- Insight into critical components and system behavior over time
+
+All analyses are performed within an interactive graphical user interface.
 
 ---
 
 ## 🚀 Key Features
 
-- **Robust STL-based decomposition** (trend / seasonal / residual)
-- **MAD-based spike anomaly detection** with high recall
-- **Slope-aware drift detection** using sustained trend changes
-- **Type-aware anomaly classification**
-  - Spike
-  - Spike-in-drift
-  - Moderate deviation
-- **Confidence-weighted repair mechanism**
-  - Repairs applied **only to safe spike anomalies**
-  - Drift regions explicitly excluded from repair
-- **Explainable anomaly decisions**
-  - z-score, confidence, drift-awareness per anomaly
-- **Safety guarantees**
-  - Zero negative-impact repairs observed
-  - Conservative repair policy inside drift
+- Graph-based system modeling (components, junctions, start/end nodes)
+- Automatic extraction of **minimal path sets**
+- Analytical system reliability using the inclusion–exclusion principle
+- Time-dependent reliability analysis \( R(t) \)
+- Support for multiple lifetime distributions:
+  - Exponential
+  - Weibull
+  - Log-Normal
+  - Gamma
+  - Log-Logistic
+  - Rayleigh
+  - Gompertz
+- Monte Carlo simulation based on analytically derived minimal path sets
+- Common Cause Failure (CCF) modeling
+- System lifetime histogram
+- Monte Carlo-based reliability curve
+- Component Criticality Index (CCI)
+- Critical interval and robustness analysis
+- Interactive GUI implemented using PyQt6
 
 ---
 
-## 🧠 Method Overview
+## 🧠 Methodology
 
-1. **STL decomposition** is applied to isolate residual anomalies.
-2. **Spike anomalies** are detected using a robust MAD-based z-score.
-3. **Concept drift** is identified via sustained slope changes in the trend.
-4. Each anomaly is **explained and classified** based on magnitude and drift context.
-5. **Repairs are applied only when safe**, using:
-   - Trend + seasonal reconstruction
-   - Confidence-weighted blending
-6. Drift regions are **explicitly protected** from forced corrections.
+1. The system is represented as a directed graph.
+2. All minimal paths between **Start** and **End** nodes are extracted.
+3. System reliability is derived analytically using the inclusion–exclusion principle.
+4. Time-dependent reliability \( R(t) \) is computed based on component lifetime distributions.
+5. Monte Carlo simulation generates system lifetime samples using the same minimal path sets.
+6. Monte Carlo results are used to validate analytical reliability results.
+7. Additional criticality and sensitivity analyses are performed.
 
----
-
-## 📊 Quantitative Results (Synthetic Injection)
-
-| Metric | Value |
-|------|------|
-| Precision | 0.319 |
-| Recall | 0.759 |
-| RMSE (before repair) | 305.43 |
-| RMSE (after repair) | 177.12 |
-| RMSE (drift excluded) | 78.07 |
-| Avg repair improvement | **97.8%** |
-| Repair safety rate | **100%** |
-| Spike repair coverage | **100%** |
-
-> Although detection precision is intentionally relaxed to maximize recall,
-> the repair module is conservative and confidence-gated, ensuring **zero negative impact**.
+> Monte Carlo simulation is intentionally executed **after analytical path extraction** to ensure consistency between analytical and simulation-based models.
 
 ---
 
-## 📈 Visualization
+## 📊 Monte Carlo Simulation
 
-The figure below illustrates:
-- Corrupted vs original vs repaired series
-- Detected spike anomalies
-- Drift regions (shaded)
-- Repaired points only outside drift
+Monte Carlo simulation produces:
+- A set of system lifetime samples
+- An empirical reliability function defined as:
 
-<p align="center">
-  <img src="figures/result.png" width="900">
-</p>
+\[
+R_{MC}(t) = P(T_{system} > t)
+\]
+
+This enables direct comparison between analytical reliability curves and simulation-based estimates.
 
 ---
 
-## 📂 Project Structure
+## 🖥️ Project Structure
 
 ```text
-.
-├── data/
-│   └── yahoo.csv
-├── figures/
-│   └── result.png
-├── load_data.py
-├── visualization.py
-├── main.py
-└── README.md
-🛠️ How to Run
-bash
-Kodu kopyala
-pip install -r requirements.txt
+├── main.py                # GUI and application logic
+├── monte_carlo.py         # Monte Carlo simulation engine
+├── distributions.py       # Lifetime distributions and sampling functions
+├── critical_analysis.py   # Criticality and robustness analysis
+├── README.md
+````
+
+---
+
+## ⚙️ Installation
+
+### Requirements
+
+* Python 3.10 or higher
+* NumPy
+* SciPy
+* SymPy
+* Matplotlib
+* PyQt6
+
+Install required packages:
+
+```bash
+pip install numpy scipy sympy matplotlib pyqt6
+```
+
+---
+
+## ▶️ Usage
+
+Run the application:
+
+```bash
 python main.py
-🔬 Design Philosophy
-Detection ≠ Repair
+```
 
-Recall is prioritized during detection.
+Typical workflow:
 
-Repair decisions are type-aware, confidence-weighted, and drift-sensitive.
+1. Build or load a system model
+2. Select analysis mode (Static / Dynamic / Monte Carlo)
+3. Run analytical reliability analysis
+4. Run Monte Carlo simulation for validation
+5. Visualize reliability curves and criticality metrics
 
-The system is designed to be safe by construction.
+---
 
-📌 Use Cases
-Financial time series cleaning
+## 📈 Example Outputs
 
-Monitoring systems with regime shifts
+* System reliability curve ( R(t) )
+* Monte Carlo reliability curve
+* System lifetime histogram
+* Critical interval plots
+* Component criticality rankings
 
-Preprocessing pipelines for forecasting models
+---
 
-Research on safe anomaly correction
+## 🔬 Academic Context
 
-✍️ Author
-Selin Ayhan
+This project was developed as an undergraduate graduation project and follows standard reliability engineering methodologies.
+It is intended for academic and educational use and can be extended for research-oriented applications.
+
+---
+
+## 🔮 Future Work
+
+* Bayesian reliability modeling
+* Graph Neural Networks (GNNs) for reliability prediction
+* Large-scale system optimization
+* Uncertainty quantification and confidence interval estimation
+
+---
+
+## 👩‍💻 Author
+
+**Selin Ayhan**
 Computer Engineering
 Ankara University
+
+---
+
+## 📄 License
+
+This project is provided for academic and educational purposes.
