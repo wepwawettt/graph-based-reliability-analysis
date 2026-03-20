@@ -24,9 +24,14 @@ from critical_analysis import (
     plot_true_path_robustness,
     plot_path_rt_curves,
     plot_survival_and_cdf,
-    plot_system_rt_comparison
+    plot_system_rt_comparison,
+    plot_mc_with_ci,
+    plot_analytic_vs_mc,
+    build_validation_table,
+    plot_validation_table,
+    plot_top_k_critical_paths,
+    plot_critical_summary_table
 )
-
 # --- GEREKLİ KÜTÜPHANELER ---
 try:
     import sympy
@@ -75,7 +80,7 @@ from critical_analysis import plot_critical_intervals
 
 from distributions import DISTRIBUTIONS
 
-from monte_carlo import run_monte_carlo
+from monte_carlo import run_monte_carlo, monte_carlo_convergence
 
 
 
@@ -676,10 +681,15 @@ class MainWindow(QMainWindow):
         right_layout.addWidget(self.result_label)
         right_layout.addWidget(self.show_formula_button)
         right_layout.addStretch()
-        self.critical_button = QPushButton("Critical Analysis (Multi-Model)")
-        self.critical_button.setMinimumHeight(36)
-        self.critical_button.clicked.connect(self.run_critical_analysis)
-        right_layout.addWidget(self.critical_button)
+        self.current_critical_button = QPushButton("Critical Analysis (Current Tab)")
+        self.current_critical_button.setMinimumHeight(36)
+        self.current_critical_button.clicked.connect(self.run_current_tab_critical_analysis)
+        right_layout.addWidget(self.current_critical_button)
+
+        self.compare_models_button = QPushButton("Compare Models")
+        self.compare_models_button.setMinimumHeight(36)
+        self.compare_models_button.clicked.connect(self.run_critical_analysis)
+        right_layout.addWidget(self.compare_models_button)
 
         main_layout.addWidget(right_panel)
 
@@ -775,21 +785,124 @@ class MainWindow(QMainWindow):
                 if cb.isChecked()
             ]
 
-            if len(selected) < 2:
+            if len(selected) == 0:
                 QMessageBox.warning(
                     dialog,
                     "Yetersiz Seçim",
-                    "Critical Analysis için en az 2 model seçmelisiniz."
+                    "Lütfen en az 1 model seçin."
                 )
+                return
+
+            if len(selected) == 1:
+                dialog.accept()
+                self._run_single_model_analysis_from_dialog(selected[0])
                 return
 
             dialog.accept()
             self._run_critical_analysis_on_selected(selected)
 
+            
+
         ok_btn.clicked.connect(on_ok)
 
         dialog.exec()
+    def _run_single_model_analysis_from_dialog(self, selected_item):
+        name, tab = selected_item
 
+        if "analysis_results" not in tab.model_state:
+            QMessageBox.warning(self, "Uyarı", "Seçilen modelde analiz sonucu yok.")
+            return
+
+        analysis = tab.model_state["analysis_results"]
+
+        results_dict = {
+            name: {
+                "t": analysis["t"],
+                "R": analysis["R"]
+            }
+        }
+
+        intervals = plot_critical_intervals(results_dict)
+        if intervals:
+            plot_critical_slopes(intervals)
+            df = critical_summary_table(intervals)
+            plot_critical_summary_table(df, title=f"Critical Summary – {name}")
+
+        paths = tab.model_state.get("component_paths", [])
+        path_rts = tab.model_state.get("path_rt", [])
+
+        if paths and path_rts:
+            single_paths = {name: paths}
+            single_path_rts = {name: path_rts}
+
+            plot_path_rt_curves(results_dict, single_paths, single_path_rts)
+            plot_true_path_robustness(results_dict, single_paths, single_path_rts)
+            plot_component_criticality(results_dict, single_paths)
+
+            plot_top_k_critical_paths(
+                path_rts=path_rts,
+                component_paths=paths,
+                t_vals=analysis["t"],
+                k=5,
+                title=f"Top-5 Critical Paths – {name}"
+            )
+    def run_current_tab_critical_analysis(self):
+        tab = self.tab_widget.currentWidget()
+
+        if tab is None or not hasattr(tab, "model_state"):
+            QMessageBox.warning(self, "Uyarı", "Aktif model bulunamadı.")
+            return
+
+        if "analysis_results" not in tab.model_state:
+            QMessageBox.warning(self, "Uyarı", "Önce bu model için analiz çalıştırmalısınız.")
+            return
+
+        model_name = self.tab_widget.tabText(self.tab_widget.currentIndex())
+        analysis = tab.model_state["analysis_results"]
+
+        results_dict = {
+            model_name: {
+                "t": analysis["t"],
+                "R": analysis["R"]
+            }
+        }
+
+        intervals = plot_critical_intervals(results_dict)
+        if intervals:
+            plot_critical_slopes(intervals)
+
+            df = critical_summary_table(intervals)
+            plot_critical_summary_table(df, title=f"Critical Summary – {model_name}")
+
+        paths = tab.model_state.get("component_paths", [])
+        path_rts = tab.model_state.get("path_rt", [])
+
+        if paths and path_rts:
+            single_paths = {
+                model_name: paths
+            }
+            single_path_rts = {
+                model_name: path_rts
+            }
+
+            plot_path_rt_curves(results_dict, single_paths, single_path_rts)
+            plot_true_path_robustness(results_dict, single_paths, single_path_rts)
+
+            plot_component_criticality(results_dict, single_paths)
+
+            plot_top_k_critical_paths(
+                path_rts=path_rts,
+                component_paths=paths,
+                t_vals=analysis["t"],
+                k=5,
+                title=f"Top-5 Critical Paths – {model_name}"
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Bilgi",
+                "Bu model için path-bazlı veri bulunamadı. Sadece sistem seviyesi kritik analiz gösterildi."
+            )
     def _run_critical_analysis_on_selected(self, selected_tabs):
         results_dict = {}
         paths_dict = {}
@@ -819,8 +932,7 @@ class MainWindow(QMainWindow):
         plot_critical_slopes(intervals)
 
         df = critical_summary_table(intervals)
-        print("\n=== CRITICAL ANALYSIS SUMMARY ===")
-        print(df)
+        plot_critical_summary_table(df, title="Critical Analysis Summary")
 
         # === PATH SEVİYESİ ANALİZLER ===
         if paths_dict:
@@ -829,6 +941,9 @@ class MainWindow(QMainWindow):
                     # === COMPONENT CRITICALITY (CCI) ===
             # === COMPONENT CRITICALITY (MODEL BAZLI) ===
             for model_name in results_dict:
+                if model_name not in paths_dict:
+                    continue
+
                 single_results = {
                     model_name: results_dict[model_name]
                 }
@@ -837,11 +952,15 @@ class MainWindow(QMainWindow):
                 }
 
                 plot_component_criticality(single_results, single_paths)
-
-
-
-
-
+                # === TOP-K CRITICAL PATHS ===
+            for model_name in path_rt_dict:
+                plot_top_k_critical_paths(
+                    path_rts=path_rt_dict[model_name],
+                    component_paths=paths_dict[model_name],
+                    t_vals=results_dict[model_name]["t"],
+                    k=5,
+                    title=f"Top-5 Critical Paths – {model_name}"
+                )
 
     def create_empty_model_tab(self, tab_name):
         tab = QWidget()
@@ -893,18 +1012,13 @@ class MainWindow(QMainWindow):
         try:
             # === 1. PATH SETS ===
             print("1. Tüm minimal yollar (path sets) bulunuyor...")
-            paths_nodes = self._find_all_paths("Start", "End")
+            component_paths = self._get_component_paths()
 
-            if not paths_nodes:
-                QMessageBox.critical(self, "Hata", "Start ile End arasında yol yok.")
+            if not component_paths:
+                QMessageBox.critical(self, "Hata", "Start ile End arasında bileşen içeren geçerli yol yok.")
                 self.run_button.setText("FORMÜL ÜRET & HESAPLA")
                 return
 
-            component_paths = [
-                frozenset([n for n in p if n in self.components])
-                for p in paths_nodes
-            ]
-            component_paths = list(dict.fromkeys(component_paths))
             tab = self.tab_widget.currentWidget()
             tab.model_state["component_paths"] = component_paths
 
@@ -1177,12 +1291,11 @@ class MainWindow(QMainWindow):
             "R": system_r
         }
 
-        tab = self.tab_widget.currentWidget()
-        tab.model_state["analysis_results"] = {
-            "t": t_safe,
-            "R": system_r
-        }
-
+        tab.model_state["analytic_results"] = {
+    "t": t_safe.copy(),
+    "R": system_r.copy(),
+    "MTTF": float(mttf) if mttf is not None else None
+}
     def on_dist_changed(self):
         # Eski parametre widgetlarını temizle
         for label, edit in getattr(self, "param_inputs", []):
@@ -1239,7 +1352,25 @@ class MainWindow(QMainWindow):
             return paths
 
         # --- ARAYÜZ YÖNETİM FONKSİYONLARI ---
-        
+    def _get_component_paths(self):
+    
+        paths_nodes = self._find_all_paths("Start", "End")
+
+        if not paths_nodes:
+            return []
+
+        component_paths = [
+            frozenset([n for n in p if n in self.components])
+            for p in paths_nodes
+        ]
+
+        # tekrar edenleri kaldır
+        component_paths = list(dict.fromkeys(component_paths))
+
+        # boş path'leri çıkar
+        component_paths = [p for p in component_paths if p]
+
+        return component_paths    
     def show_formula_window(self):
             if self.formula_latex:
                 if self.formula_window and self.formula_window.isVisible():
@@ -1710,7 +1841,7 @@ class MainWindow(QMainWindow):
         elif self.analysis_mode == "montecarlo":
             self.run_monte_carlo_gui()
 
-
+    
     def clean_latex(self, text):
     
     
@@ -1895,7 +2026,6 @@ class MainWindow(QMainWindow):
                 "Kritik karşılaştırma için en az 2 model yüklenmelidir."
             )
 
-    from monte_carlo import run_monte_carlo
     def _get_ccf_config(self):
         """
         CCF (Common Cause Failure) ayarlarını döndürür.
@@ -1930,35 +2060,132 @@ class MainWindow(QMainWindow):
             return None
 
     def run_monte_carlo_gui(self):
-        tab = self.tab_widget.currentWidget()
-        if "component_paths" not in tab.model_state:
+        if not self.components or not self.graph:
             QMessageBox.warning(
                 self,
                 "Monte Carlo Uyarısı",
-                "Monte Carlo simülasyonu için önce Dinamik Analiz (R(t)) çalıştırılmalıdır.\n\n"
-                "Sebep: Monte Carlo, analitik olarak elde edilen minimal yol kümelerini kullanır."
+                "Önce bileşenleri ve bağlantıları tanımlamalısınız."
             )
             return
-        self.component_paths = tab.model_state.get("component_paths", [])
-        T_sys, t_vals, R_mc = run_monte_carlo(
-        components=self.components,
-        component_paths=self.component_paths,
-        N=self.mc_spinbox.value(),
-        t_max=self.t_max_input.value(),
-        ccf=self._get_ccf_config()
-    )
 
-        # Histogram
+        tab = self.tab_widget.currentWidget()
+        if tab is None or not hasattr(tab, "model_state"):
+            QMessageBox.warning(
+                self,
+                "Monte Carlo Uyarısı",
+                "Aktif sekme bulunamadı."
+            )
+            return
+
+        analytic = tab.model_state.get("analytic_results", None)
+
+        if analytic is None:
+            reply = QMessageBox.question(
+                self,
+                "Validation için Analitik Sonuç Gerekli",
+                "Bu model için daha önce dinamik/analitik analiz çalıştırılmamış.\n\n"
+                "Monte Carlo karşılaştırma grafiğinin üretilebilmesi için analitik sonuç gerekir.\n\n"
+                "Şimdi otomatik olarak dinamik analiz çalıştırılsın mı?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if reply == QMessageBox.StandardButton.Yes:
+                old_mode = self.analysis_mode
+                try:
+                    self.analysis_mode = "dynamic"
+                    self.run_analysis()
+                finally:
+                    self.analysis_mode = old_mode
+
+                analytic = tab.model_state.get("analytic_results", None)
+            else:
+                print("[INFO] User skipped automatic analytical run before Monte Carlo.")
+
+        component_paths = self._get_component_paths()
+
+        if not component_paths:
+            QMessageBox.warning(
+                self,
+                "Monte Carlo Uyarısı",
+                "Start ile End arasında geçerli bir bileşen yolu bulunamadı."
+            )
+            return
+
+        tab.model_state["component_paths"] = component_paths
+
+        mc_start = time.perf_counter()
+
+        T_sys, t_vals, R_mc, R_low, R_high, MTTF, CI_low, CI_high = run_monte_carlo(
+            components=self.components,
+            component_paths=component_paths,
+            N=self.mc_spinbox.value(),
+            t_max=self.t_max_input.value(),
+            ccf=self._get_ccf_config(),
+            seed=42
+        )
+
+        mc_runtime = time.perf_counter() - mc_start
+
         self.mc_hist_window = HistogramWindow(T_sys)
         self.mc_hist_window.setWindowTitle("Monte Carlo Sistem Ömrü Histogramı")
         self.mc_hist_window.show()
 
-        # 🔥 R(t) grafiği
-        plot_data = {
-            "Monte Carlo R(t)": R_mc
+        plot_mc_with_ci(t_vals, R_mc, R_low, R_high)
+
+        validation_df = None
+
+        if analytic is not None:
+            plot_analytic_vs_mc(
+                t_analytic=analytic["t"],
+                R_analytic=analytic["R"],
+                t_mc=t_vals,
+                R_mc=R_mc,
+                R_low=R_low,
+                R_high=R_high
+            )
+
+            validation_df = build_validation_table(
+                t_analytic=analytic["t"],
+                R_analytic=analytic["R"],
+                t_mc=t_vals,
+                R_mc=R_mc,
+                mttf_analytic=analytic.get("MTTF", None),
+                mttf_mc=MTTF,
+                runtime_mc=mc_runtime
+            )
+
+            plot_validation_table(validation_df)
+        else:
+            print("[INFO] Validation graph/table skipped: no analytical result found for this model.")
+
+        tab.model_state["mc_results"] = {
+            "T_sys": T_sys,
+            "t": t_vals,
+            "R": R_mc,
+            "R_low": R_low,
+            "R_high": R_high,
+            "MTTF": MTTF,
+            "CI_low": CI_low,
+            "CI_high": CI_high,
+            "runtime_sec": mc_runtime,
+            "validation_table": validation_df.to_dict(orient="records") if validation_df is not None else None
         }
-        self.plot_window = PlotWindow(t_vals, plot_data)
-        self.plot_window.show()
+
+        self.result_label.setText(
+            f"Monte Carlo: R(t={self.t_max_input.value():.0f}) = {float(R_mc[-1]):.6f}, "
+            f"MTTF ≈ {MTTF:.2f}, Runtime ≈ {mc_runtime:.3f}s"
+        )
+
+        print("===== Monte Carlo Statistics =====")
+        print("MTTF:", MTTF)
+        print("95% CI for MTTF:", CI_low, "-", CI_high)
+        print("Runtime (s):", mc_runtime)
+
+        analytic_mttf = None
+        if analytic is not None:
+            analytic_mttf = analytic.get("MTTF", None)
+
+        monte_carlo_convergence(T_sys, analytic_mttf=analytic_mttf)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -2050,15 +2277,12 @@ class MainWindow(QMainWindow):
     def _compute_mttf_for_components(self, components_backup):
         """
         Verilen bileşen konfigürasyonu için
-        SADECE MTTF hesaplar (grafik çizmez)
+        sadece MTTF hesaplar (grafik çizmez).
         """
-        # === minimal yolları bul ===
-        paths_nodes = self._find_all_paths("Start", "End")
-        component_paths = [
-            frozenset([n for n in p if n in components_backup])
-            for p in paths_nodes
-        ]
-        component_paths = list(dict.fromkeys(component_paths))
+
+        component_paths = self._get_component_paths()
+        if not component_paths:
+            return 0.0
 
         t_max = self.t_max_input.value()
         t_safe = np.linspace(1e-6, t_max, 400)
@@ -2066,48 +2290,45 @@ class MainWindow(QMainWindow):
         t = sympy.symbols("t", positive=True)
         modules = ["numpy", {"exp": np.exp, "log": np.log, "sqrt": np.sqrt, "erfc": scipy_erfc}]
 
-        # === path R(t) ===
         path_rts = []
 
         for pset in component_paths:
-            rt_path = np.ones_like(t_safe)
+            rt_path = np.ones_like(t_safe, dtype=float)
 
             for cname in pset:
                 data = components_backup[cname]
+
                 if data["dist"] == "static":
-                    rt_c = np.ones_like(t_safe) * data["R"]
+                    rt_c = np.ones_like(t_safe, dtype=float) * data["R"]
+
                 else:
                     conf = DISTRIBUTIONS[data["dist"]]
+
                     if conf.get("R_sym") is not None:
                         f = sympy.lambdify(t, conf["R_sym"](t, data["params"]), modules)
                         rt_c = f(t_safe)
                     else:
                         rt_c = conf["R_num"](t_safe, data["params"])
 
+                    rt_c = np.asarray(rt_c, dtype=float)
+                    rt_c = np.nan_to_num(rt_c, nan=0.0, posinf=0.0, neginf=0.0)
 
-                if conf.get("R_sym") is not None:
-                    f = sympy.lambdify(t, conf["R_sym"](t, data["params"]), modules)
-                    rt_c = f(t_safe)
-                else:
-                    rt_c = conf["R_num"](t_safe, data["params"])
-
-                rt_c = np.nan_to_num(rt_c, 0.0, 0.0, 0.0)
                 rt_path *= rt_c
 
             path_rts.append(rt_path)
 
-        # === inclusion–exclusion ===
-        system_r = np.zeros_like(t_safe)
+        system_r = np.zeros_like(t_safe, dtype=float)
+
         for k in range(1, len(path_rts) + 1):
             for comb in combinations(range(len(path_rts)), k):
-                prod = np.ones_like(t_safe)
+                prod = np.ones_like(t_safe, dtype=float)
                 for i in comb:
                     prod *= path_rts[i]
                 system_r += ((-1) ** (k + 1)) * prod
 
-        system_r = np.clip(system_r, 0, 1)
-        mttf = np.trapz(system_r, t_safe)
+        system_r = np.clip(system_r, 0.0, 1.0)
 
+        mttf = np.trapz(system_r, t_safe)
         return float(mttf)
 
     def run_sensitivity_analysis(self):
@@ -2154,7 +2375,7 @@ class MainWindow(QMainWindow):
 
         return mttf_base, sensitivity_results
 
-
+    
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()

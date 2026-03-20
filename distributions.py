@@ -4,14 +4,14 @@ import sympy
 from sympy import erf, erfc, sqrt 
 from sympy import symbols, expand, exp, log, Symbol
 from scipy.stats import lognorm, gamma
-
+rng = np.random.default_rng()
 DISTRIBUTIONS = {
     "Exponential": {
         "params": [
             {"key": "lambda", "label": "λ (Failure rate)", "type": float}
         ],
         "R_sym": lambda t, p: exp(-p["lambda"] * t),
-        "sample": lambda p: np.random.exponential(1 / p["lambda"])
+        "sample": lambda p: rng.exponential(1 / p["lambda"])
     },
 
     "Weibull": {
@@ -20,7 +20,7 @@ DISTRIBUTIONS = {
             {"key": "eta",  "label": "η (Scale)", "type": float}
         ],
         "R_sym": lambda t, p: exp(-(t / p["eta"]) ** p["beta"]),
-        "sample": lambda p: np.random.weibull(p["beta"]) * p["eta"]
+        "sample": lambda p: rng.weibull(p["beta"]) * p["eta"]
     },
 
     "Log-Normal": {
@@ -30,7 +30,7 @@ DISTRIBUTIONS = {
         ],
         "R_sym": None,  # numerik hesaplanacak
         "R_num": lambda t, p: 1 - lognorm.cdf(t, s=p["sigma"], scale=np.exp(p["mu"])),
-        "sample": lambda p: np.random.lognormal(p["mu"], p["sigma"])
+        "sample": lambda p: rng.lognormal(p["mu"], p["sigma"])
     },
 
     "Gamma": {
@@ -40,7 +40,7 @@ DISTRIBUTIONS = {
         ],
         "R_sym": None,  # gammaincc ile
         "R_num": lambda t, p: 1 - gamma.cdf(t, a=p["alpha"], scale=p["theta"]),
-        "sample": lambda p: np.random.gamma(p["alpha"], p["theta"])
+        "sample": lambda p: rng.gamma(p["alpha"], p["theta"])
     },
 
     "Log-Logistic": {
@@ -51,7 +51,7 @@ DISTRIBUTIONS = {
         "R_sym": lambda t, p: 1 / (1 + (t / p["alpha"]) ** p["beta"]),
         "sample": lambda p: (
             p["alpha"] *
-            (np.random.rand() / (1 - np.random.rand())) ** (1 / p["beta"])
+            (rng.random() / (1 - rng.random())) ** (1 / p["beta"])
         )
     },
     "Rayleigh": {
@@ -59,7 +59,7 @@ DISTRIBUTIONS = {
             {"key": "sigma", "label": "σ (Scale)", "type": float}
         ],
         "R_sym": lambda t, p: exp(-(t ** 2) / (2 * p["sigma"] ** 2)),
-        "sample": lambda p: p["sigma"] * np.sqrt(-2 * np.log(np.random.rand()))
+        "sample": lambda p: p["sigma"] * np.sqrt(-2 * np.log(rng.random()))
     },
     "Gompertz": {
         "params": [
@@ -68,7 +68,7 @@ DISTRIBUTIONS = {
         ],
         "R_sym": lambda t, p: exp(-p["b"] * (exp(t / p["eta"]) - 1)),
         "sample": lambda p: (
-            p["eta"] * np.log(1 - np.log(np.random.rand()) / p["b"])
+            p["eta"] * np.log(1 - np.log(rng.random()) / p["b"])
         )
     }
 }

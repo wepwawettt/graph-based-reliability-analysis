@@ -103,7 +103,42 @@ def critical_summary_table(intervals):
         })
 
     return pd.DataFrame(rows)
+def plot_critical_summary_table(df, title="Critical Analysis Summary"):
+    import matplotlib.pyplot as plt
 
+    if df is None or df.empty:
+        print("[WARN] plot_critical_summary_table: boş dataframe.")
+        return
+
+    df_fmt = df.copy()
+
+    for col in df_fmt.columns:
+        if col == "System":
+            continue
+        df_fmt[col] = df_fmt[col].map(lambda x: f"{float(x):.2f}")
+
+    fig, ax = plt.subplots(figsize=(10, 1.8 + 0.35 * len(df_fmt)))
+    ax.axis("off")
+
+    table = ax.table(
+        cellText=df_fmt.values,
+        colLabels=df_fmt.columns,
+        loc="center",
+        cellLoc="center"
+    )
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.2, 1.5)
+
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_text_props(weight="bold")
+            cell.set_facecolor("#D9E1F2")
+
+    ax.set_title(title, fontsize=14, fontweight="bold", pad=10)
+    plt.tight_layout()
+    plt.show()
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -355,5 +390,291 @@ def plot_system_rt_comparison(results_dict):
     plt.title("Sistem Bazlı Güvenilirlik Eğrilerinin Karşılaştırılması")
     plt.legend()
     plt.grid(True, linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_mc_with_ci(t, R, R_low, R_high):
+    t = np.asarray(t, dtype=float)
+    R = np.asarray(R, dtype=float)
+    R_low = np.asarray(R_low, dtype=float)
+    R_high = np.asarray(R_high, dtype=float)
+
+    ci_width = R_high - R_low
+    print("Max CI width:", np.max(ci_width))
+    print("Mean CI width:", np.mean(ci_width))
+    print("CI width at mid:", ci_width[len(ci_width)//2])
+
+    plt.figure(figsize=(8, 5))
+
+    plt.fill_between(
+        t,
+        R_low,
+        R_high,
+        color="orange",
+        alpha=0.8,
+        label="95% CI",
+        zorder=1
+    )
+
+    plt.plot(
+        t,
+        R,
+        color="blue",
+        linewidth=2.5,
+        label="Monte Carlo R(t)",
+        zorder=3
+    )
+
+    plt.plot(
+        t,
+        R_low,
+        color="red",
+        linestyle="--",
+        linewidth=1.5,
+        label="CI Lower",
+        zorder=2
+    )
+
+    plt.plot(
+        t,
+        R_high,
+        color="green",
+        linestyle="--",
+        linewidth=1.5,
+        label="CI Upper",
+        zorder=2
+    )
+
+    plt.xlabel("Time")
+    plt.ylabel("Reliability R(t)")
+    plt.title("Monte Carlo System Reliability with 95% CI")
+    plt.ylim(
+        max(0.0, np.min(R_low) - 0.02),
+        min(1.02, np.max(R_high) + 0.02)
+    )
+    plt.legend()
+    plt.grid(True, linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+
+
+
+def plot_hazard_rate(t, R):
+
+    t = np.asarray(t)
+    R = np.asarray(R)
+
+    dt = np.gradient(t)
+    dR = np.gradient(R)
+
+    hazard = -dR / (R * dt)
+
+    plt.figure(figsize=(7,4))
+    plt.plot(t, hazard, linewidth=2)
+    plt.xlabel("Time")
+    plt.ylabel("Hazard rate h(t)")
+    plt.title("Estimated Hazard Rate")
+    plt.grid(True, linestyle="--", alpha=0.4)
+    plt.tight_layout()
+    plt.show()
+
+def plot_analytic_vs_mc(t_analytic, R_analytic, t_mc, R_mc, R_low=None, R_high=None):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    t_analytic = np.asarray(t_analytic, dtype=float)
+    R_analytic = np.asarray(R_analytic, dtype=float)
+    t_mc = np.asarray(t_mc, dtype=float)
+    R_mc = np.asarray(R_mc, dtype=float)
+
+    plt.figure(figsize=(8, 5))
+
+    # Monte Carlo CI bandı
+    if R_low is not None and R_high is not None:
+        R_low = np.asarray(R_low, dtype=float)
+        R_high = np.asarray(R_high, dtype=float)
+
+        plt.fill_between(
+            t_mc,
+            R_low,
+            R_high,
+            color="orange",
+            alpha=0.35,
+            label="Monte Carlo 95% CI",
+            zorder=1
+        )
+
+    # Analitik eğri
+    plt.plot(
+        t_analytic,
+        R_analytic,
+        color="navy",
+        linewidth=2.8,
+        label="Analytical / Dynamic R(t)",
+        zorder=3
+    )
+
+    # Monte Carlo eğrisi
+    plt.plot(
+        t_mc,
+        R_mc,
+        color="red",
+        linestyle="--",
+        linewidth=2.2,
+        label="Monte Carlo R(t)",
+        zorder=4
+    )
+
+    plt.xlabel("Time")
+    plt.ylabel("Reliability R(t)")
+    plt.title("Analytical vs Monte Carlo Validation")
+    plt.ylim(0, 1.05)
+    plt.grid(True, linestyle="--", alpha=0.4)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+def build_validation_table(
+    t_analytic, R_analytic,
+    t_mc, R_mc,
+    mttf_analytic=None,
+    mttf_mc=None,
+    runtime_mc=None
+):
+    import numpy as np
+    import pandas as pd
+
+    t_analytic = np.asarray(t_analytic, dtype=float)
+    R_analytic = np.asarray(R_analytic, dtype=float)
+    t_mc = np.asarray(t_mc, dtype=float)
+    R_mc = np.asarray(R_mc, dtype=float)
+
+    # MC gridinde analitik eğriyi interpolate et
+    R_analytic_interp = np.interp(t_mc, t_analytic, R_analytic)
+
+    abs_err = np.abs(R_analytic_interp - R_mc)
+    rmse = np.sqrt(np.mean((R_analytic_interp - R_mc) ** 2))
+    max_abs_err = np.max(abs_err)
+
+    r_end_analytic = float(R_analytic_interp[-1])
+    r_end_mc = float(R_mc[-1])
+    delta_r_end = abs(r_end_analytic - r_end_mc)
+
+    row = {
+        "R(t_max) Analytic": round(r_end_analytic, 6),
+        "R(t_max) Monte Carlo": round(r_end_mc, 6),
+        "|ΔR(t_max)|": round(delta_r_end, 6),
+        "RMSE": round(float(rmse), 6),
+        "Max Abs Error": round(float(max_abs_err), 6),
+    }
+
+    if mttf_analytic is not None:
+        row["MTTF Analytic"] = round(float(mttf_analytic), 4)
+
+    if mttf_mc is not None:
+        row["MTTF Monte Carlo"] = round(float(mttf_mc), 4)
+
+    if mttf_analytic is not None and mttf_mc is not None:
+        row["|ΔMTTF|"] = round(abs(float(mttf_analytic) - float(mttf_mc)), 4)
+
+    if runtime_mc is not None:
+        row["MC Runtime (s)"] = round(float(runtime_mc), 4)
+
+    return pd.DataFrame([row])
+
+def plot_validation_table(df, title="Analytical vs Monte Carlo Validation Summary"):
+    import matplotlib.pyplot as plt
+
+    if df is None or df.empty:
+        print("[WARN] plot_validation_table: boş dataframe.")
+        return
+
+    # sayıları formatla
+    df_fmt = df.copy()
+
+    for col in df_fmt.columns:
+        if "Runtime" in col:
+            df_fmt[col] = df_fmt[col].map(lambda x: f"{x:.3f}")
+        elif "MTTF" in col:
+            df_fmt[col] = df_fmt[col].map(lambda x: f"{x:.2f}")
+        else:
+            df_fmt[col] = df_fmt[col].map(lambda x: f"{x:.5f}")
+
+    fig, ax = plt.subplots(figsize=(14, 2.5))
+    ax.axis("off")
+
+    table = ax.table(
+        cellText=df_fmt.values,
+        colLabels=df_fmt.columns,
+        loc="center",
+        cellLoc="center"
+    )
+
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1.3, 1.6)
+
+    # header styling
+    for (row, col), cell in table.get_celld().items():
+        if row == 0:
+            cell.set_text_props(weight="bold")
+            cell.set_facecolor("#E6E6E6")
+
+    ax.set_title(title, fontsize=13, pad=14)
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_top_k_critical_paths(path_rts, component_paths, t_vals, k=5, title="Top-K Critical Paths at t_max"):
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    if path_rts is None or len(path_rts) == 0:
+        print("[WARN] plot_top_k_critical_paths: path_rts boş.")
+        return
+
+    if component_paths is None or len(component_paths) == 0:
+        print("[WARN] plot_top_k_critical_paths: component_paths boş.")
+        return
+
+    # Her path için t_max noktasındaki güvenilirlik
+    final_vals = []
+    labels = []
+
+    for i, r_curve in enumerate(path_rts):
+        if r_curve is None or len(r_curve) == 0:
+            continue
+
+        final_r = float(r_curve[-1])
+        final_vals.append(final_r)
+
+        path_label = " - ".join(component_paths[i]) if i < len(component_paths) else f"Path {i+1}"
+        labels.append(path_label)
+
+    if not final_vals:
+        print("[WARN] plot_top_k_critical_paths: çizilecek veri yok.")
+        return
+
+    # En düşük R(t_max) = en kritik yol
+    order = np.argsort(final_vals)[:k]
+
+    sorted_vals = [final_vals[i] for i in order]
+    sorted_labels = [labels[i] for i in order]
+
+    plt.figure(figsize=(10, 5))
+    bars = plt.barh(range(len(sorted_vals)), sorted_vals)
+
+    plt.yticks(range(len(sorted_vals)), sorted_labels)
+    plt.xlabel("Path Reliability at t_max")
+    plt.title(title)
+    plt.gca().invert_yaxis()
+    plt.grid(axis="x", linestyle="--", alpha=0.4)
+
+    for i, v in enumerate(sorted_vals):
+        plt.text(v + 0.005, i, f"{v:.4f}", va="center")
+
     plt.tight_layout()
     plt.show()
