@@ -14,6 +14,11 @@ import json
 import time
 import re
 import copy
+from monte_carlo import (
+    run_monte_carlo,
+    monte_carlo_convergence,
+    monte_carlo_component_importance
+)
 from critical_analysis import (
     plot_critical_intervals,
     plot_path_robustness,
@@ -30,7 +35,10 @@ from critical_analysis import (
     build_validation_table,
     plot_validation_table,
     plot_top_k_critical_paths,
-    plot_critical_summary_table
+    plot_critical_summary_table,
+    plot_path_contributions,
+    plot_hazard_rate,
+    plot_mc_component_importance
 )
 # --- GEREKLİ KÜTÜPHANELER ---
 try:
@@ -630,8 +638,9 @@ class MainWindow(QMainWindow):
         right_layout.setContentsMargins(10, 10, 10, 10)
 
         right_layout.addWidget(self.create_separator("4. Adım: Hesaplama ve Sonuçlar"))
-       # === MONTE CARLO DENEME SAYISI ===
-        mc_box = QGroupBox("Monte Carlo Ayarları")
+
+        # === MONTE CARLO AYARLARI ===
+        self.mc_box = QGroupBox("Monte Carlo Ayarları")
         mc_layout = QVBoxLayout()
 
         self.mc_spinbox = QSpinBox()
@@ -642,10 +651,33 @@ class MainWindow(QMainWindow):
         mc_layout.addWidget(QLabel("Simülasyon Sayısı (N):"))
         mc_layout.addWidget(self.mc_spinbox)
 
-        mc_box.setLayout(mc_layout)
-        right_layout.addWidget(mc_box)
+        self.mc_box.setLayout(mc_layout)
+        right_layout.addWidget(self.mc_box)
 
-      
+        # === ÇIKTI TERCİHLERİ ===
+        self.output_box = QGroupBox("Çıktı Tercihleri")
+        output_layout = QVBoxLayout()
+
+        self.show_mc_hist_cb = QCheckBox("Histogram göster")
+        self.show_mc_hist_cb.setChecked(False)
+
+        self.show_mc_conv_cb = QCheckBox("Convergence göster")
+        self.show_mc_conv_cb.setChecked(False)
+
+        self.show_mc_path_contrib_cb = QCheckBox("Path contribution göster")
+        self.show_mc_path_contrib_cb.setChecked(False)
+
+        self.show_sensitivity_cb = QCheckBox("Sensitivity / Tornado göster")
+        self.show_sensitivity_cb.setChecked(False)
+
+        output_layout.addWidget(self.show_mc_hist_cb)
+        output_layout.addWidget(self.show_mc_conv_cb)
+        output_layout.addWidget(self.show_mc_path_contrib_cb)
+        output_layout.addWidget(self.show_sensitivity_cb)
+
+        self.output_box.setLayout(output_layout)
+        right_layout.addWidget(self.output_box)
+
         # === CCF (Common Cause Failure) ===
         self.ccf_checkbox = QPushButton("CCF Kullan (β)")
         self.ccf_checkbox.setCheckable(True)
@@ -661,7 +693,8 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(self.ccf_checkbox)
         right_layout.addWidget(self.ccf_beta_input)
-        # === ZAMAN ARALIĞI (T) ===
+
+        # === ZAMAN AYARLARI ===
         time_box = QGroupBox("Zaman Ayarları")
         time_layout = QVBoxLayout()
 
@@ -677,29 +710,53 @@ class MainWindow(QMainWindow):
         time_box.setLayout(time_layout)
         right_layout.addWidget(time_box)
 
+        # === ANA İŞLEM ===
         right_layout.addWidget(self.run_button)
         right_layout.addWidget(self.result_label)
+        self.runtime_label = QLabel("Son çalışma süresi: -")
+        right_layout.addWidget(self.runtime_label)
         right_layout.addWidget(self.show_formula_button)
+
         right_layout.addStretch()
+
+        # === GELİŞMİŞ ANALİZ ===
+        self.advanced_box = QGroupBox("Gelişmiş Analiz")
+        advanced_layout = QVBoxLayout()
+        self.hazard_button = QPushButton("Hazard Rate (Current Result)")
+        self.hazard_button.setMinimumHeight(36)
+        self.hazard_button.clicked.connect(self.show_hazard_rate_current)
+
+        self.mc_importance_button = QPushButton("MC Component Importance")
+        self.mc_importance_button.setMinimumHeight(36)
+        self.mc_importance_button.clicked.connect(self.run_mc_component_importance_current)
+
+        advanced_layout.addWidget(self.hazard_button)
+        advanced_layout.addWidget(self.mc_importance_button)
         self.current_critical_button = QPushButton("Critical Analysis (Current Tab)")
         self.current_critical_button.setMinimumHeight(36)
         self.current_critical_button.clicked.connect(self.run_current_tab_critical_analysis)
-        right_layout.addWidget(self.current_critical_button)
 
         self.compare_models_button = QPushButton("Compare Models")
         self.compare_models_button.setMinimumHeight(36)
         self.compare_models_button.clicked.connect(self.run_critical_analysis)
-        right_layout.addWidget(self.compare_models_button)
+
+        advanced_layout.addWidget(self.current_critical_button)
+        advanced_layout.addWidget(self.compare_models_button)
+
+        self.advanced_box.setLayout(advanced_layout)
+        right_layout.addWidget(self.advanced_box)
 
         main_layout.addWidget(right_panel)
-
-        # Başlangıçta mod ayarını bir kez uygula
+        # Başlangıç görünümünü doğru ayarla
         self.on_mode_changed("Statik Analiz (R)")
+
+        # Context menu bağlantıları
         self.setup_connection_context_menu()
         self.comp_list_widget.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.comp_list_widget.customContextMenuRequested.connect(
             self.show_component_context_menu
-        )
+)
+        
     def show_component_context_menu(self, pos):
         item = self.comp_list_widget.itemAt(pos)
         if not item:
@@ -998,14 +1055,20 @@ class MainWindow(QMainWindow):
 
 
     # --- SİMÜLASYON MOTORU (Tüm düzeltmeler dahil) ---
-    def run_analysis(self):
+    def run_analysis(self, show_plot=True, show_sensitivity=None):
         mttf = None
         t_max = self.t_max_input.value()
+        if show_sensitivity is None:
+            show_sensitivity = (
+                hasattr(self, "show_sensitivity_cb")
+                and self.show_sensitivity_cb.isVisible()
+                and self.show_sensitivity_cb.isChecked()
+            )
 
         if not self.components or not self.graph:
             QMessageBox.warning(self, "Hata", "Önce bileşen ve bağlantı tanımlanmalı.")
             return
-
+        run_start = time.perf_counter()
         self.run_button.setText("Hesaplanıyor...")
         QApplication.processEvents()
 
@@ -1252,9 +1315,9 @@ class MainWindow(QMainWindow):
                 mttf = None
 
             # === GRAFİK ===
-            self.plot_window = PlotWindow(t_safe, plot_data_final, mttf=mttf)
-
-            self.plot_window.show()
+            if show_plot:
+                self.plot_window = PlotWindow(t_safe, plot_data_final, mttf=mttf)
+                self.plot_window.show()
             # === ANALİZ SONUÇLARINI SAKLA (KRİTİK ANALİZ İÇİN) ===
             self.last_results = {
                 "CurrentSystem": {
@@ -1267,34 +1330,41 @@ class MainWindow(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Analiz Hatası", f"Hata: {e}")
             print("HATA:", e)
+            self.run_button.setText("FORMÜL ÜRET & HESAPLA")
+            return
 
         self.run_button.setText("FORMÜL ÜRET & HESAPLA")
 
         mttf_text = f"{mttf:.2f}" if mttf is not None else "N/A"
-
+        runtime_sec = time.perf_counter() - run_start
+        self.runtime_label.setText(f"Son çalışma süresi: {runtime_sec:.3f} s")
         self.result_label.setText(
             f"Sistem Güvenirliği: R(t={t_max:.0f}) = {float(system_r[-1]):.6f},  MTTF ≈ {mttf_text}"
         )
 
-                # === SENSITIVITY / TORNADO ANALYSIS ===
-        try:
-            mttf_base, sensitivity = self.run_sensitivity_analysis()
-            if sensitivity:
-                plot_sensitivity_tornado(mttf_base, sensitivity)
-        except Exception as e:
-            print("Sensitivity analysis hatası:", e)
+                
+        # === SENSITIVITY / TORNADO ANALYSIS ===
+        if show_sensitivity:
+            try:
+                mttf_base, sensitivity = self.run_sensitivity_analysis()
+                if sensitivity:
+                    plot_sensitivity_tornado(mttf_base, sensitivity)
+            except Exception as e:
+                print("Sensitivity analysis hatası:", e)
 
         # === ANALİZ SONUCUNU AKTİF SEKMEYE KAYDET (ÇOK ÖNEMLİ) ===
         tab = self.tab_widget.currentWidget()
         tab.model_state["analysis_results"] = {
             "t": t_safe,
-            "R": system_r
+            "R": system_r,
+            "runtime_sec": runtime_sec
         }
 
         tab.model_state["analytic_results"] = {
     "t": t_safe.copy(),
     "R": system_r.copy(),
-    "MTTF": float(mttf) if mttf is not None else None
+    "MTTF": float(mttf) if mttf is not None else None,
+    "runtime_sec": runtime_sec
 }
     def on_dist_changed(self):
         # Eski parametre widgetlarını temizle
@@ -1393,19 +1463,32 @@ class MainWindow(QMainWindow):
             self.analysis_mode = "static"
             self.static_inputs_widget.setVisible(True)
             self.dynamic_inputs_widget.setVisible(False)
-            
+
             self.run_button.setText("FORMÜL ÜRET & HESAPLA")
+
+            self.mc_box.setVisible(False)
+            self.output_box.setVisible(False)
+            self.show_formula_button.setVisible(True)
 
         elif mode_text == "Dinamik Analiz R(t)":
             self.analysis_mode = "dynamic"
             self.static_inputs_widget.setVisible(False)
             self.dynamic_inputs_widget.setVisible(True)
-           
+
             self.run_button.setText("FORMÜL ÜRET & R(t) ÇİZ")
             self.on_dist_changed()
 
+            self.mc_box.setVisible(False)
+            self.output_box.setVisible(True)
 
-        else:  # --- Monte Carlo ---
+            self.show_mc_hist_cb.setVisible(False)
+            self.show_mc_conv_cb.setVisible(False)
+            self.show_mc_path_contrib_cb.setVisible(False)
+            self.show_sensitivity_cb.setVisible(True)
+
+            self.show_formula_button.setVisible(True)
+
+        else:  # Monte Carlo
             self.analysis_mode = "montecarlo"
             self.static_inputs_widget.setVisible(False)
             self.dynamic_inputs_widget.setVisible(True)
@@ -1413,6 +1496,18 @@ class MainWindow(QMainWindow):
             self.run_button.setText("Monte Carlo ÇALIŞTIR")
             self.on_dist_changed()
 
+            self.mc_box.setVisible(True)
+            self.output_box.setVisible(True)
+
+            self.show_mc_hist_cb.setVisible(True)
+            self.show_mc_conv_cb.setVisible(True)
+            self.show_mc_path_contrib_cb.setVisible(True)
+
+            # Monte Carlo modunda sensitivity varsayılan kapalı/hidden olsun
+            self.show_sensitivity_cb.setChecked(False)
+            self.show_sensitivity_cb.setVisible(False)
+
+            self.show_formula_button.setVisible(True)
     # --- EKSİK FONKSİYONLARIN SONU ---    
         
     def refresh_left_panel(self):
@@ -2093,10 +2188,9 @@ class MainWindow(QMainWindow):
                 old_mode = self.analysis_mode
                 try:
                     self.analysis_mode = "dynamic"
-                    self.run_analysis()
+                    self.run_analysis(show_plot=False, show_sensitivity=False)
                 finally:
                     self.analysis_mode = old_mode
-
                 analytic = tab.model_state.get("analytic_results", None)
             else:
                 print("[INFO] User skipped automatic analytical run before Monte Carlo.")
@@ -2115,7 +2209,7 @@ class MainWindow(QMainWindow):
 
         mc_start = time.perf_counter()
 
-        T_sys, t_vals, R_mc, R_low, R_high, MTTF, CI_low, CI_high = run_monte_carlo(
+        T_sys, t_vals, R_mc, R_low, R_high, MTTF, CI_low, CI_high, path_contrib = run_monte_carlo(
             components=self.components,
             component_paths=component_paths,
             N=self.mc_spinbox.value(),
@@ -2125,10 +2219,12 @@ class MainWindow(QMainWindow):
         )
 
         mc_runtime = time.perf_counter() - mc_start
-
-        self.mc_hist_window = HistogramWindow(T_sys)
-        self.mc_hist_window.setWindowTitle("Monte Carlo Sistem Ömrü Histogramı")
-        self.mc_hist_window.show()
+        self.runtime_label.setText(f"Son çalışma süresi: {mc_runtime:.3f} s")
+        
+        if self.show_mc_hist_cb.isChecked():
+            self.mc_hist_window = HistogramWindow(T_sys)
+            self.mc_hist_window.setWindowTitle("Monte Carlo Sistem Ömrü Histogramı")
+            self.mc_hist_window.show()
 
         plot_mc_with_ci(t_vals, R_mc, R_low, R_high)
 
@@ -2168,7 +2264,8 @@ class MainWindow(QMainWindow):
             "CI_low": CI_low,
             "CI_high": CI_high,
             "runtime_sec": mc_runtime,
-            "validation_table": validation_df.to_dict(orient="records") if validation_df is not None else None
+            "validation_table": validation_df.to_dict(orient="records") if validation_df is not None else None,
+            "path_contrib": path_contrib  
         }
 
         self.result_label.setText(
@@ -2184,9 +2281,107 @@ class MainWindow(QMainWindow):
         analytic_mttf = None
         if analytic is not None:
             analytic_mttf = analytic.get("MTTF", None)
+        if self.show_mc_path_contrib_cb.isChecked():
+            plot_path_contributions(
+                path_contrib=path_contrib,
+                component_paths=component_paths,
+                top_k=8,
+                title="Monte Carlo Path Contribution"
+            )
+        if self.show_mc_conv_cb.isChecked():
+            monte_carlo_convergence(T_sys, analytic_mttf=analytic_mttf)
+    def show_hazard_rate_current(self):
+        tab = self.tab_widget.currentWidget()
 
-        monte_carlo_convergence(T_sys, analytic_mttf=analytic_mttf)
+        if tab is None or not hasattr(tab, "model_state"):
+            QMessageBox.warning(self, "Uyarı", "Aktif model bulunamadı.")
+            return
 
+        if "mc_results" in tab.model_state:
+            data = tab.model_state["mc_results"]
+            plot_hazard_rate(data["t"], data["R"], title="Hazard Rate - Monte Carlo")
+            return
+
+        if "analytic_results" in tab.model_state:
+            data = tab.model_state["analytic_results"]
+            plot_hazard_rate(data["t"], data["R"], title="Hazard Rate - Analytical")
+            return
+
+        if "analysis_results" in tab.model_state:
+            data = tab.model_state["analysis_results"]
+            plot_hazard_rate(data["t"], data["R"], title="Hazard Rate - Current Analysis")
+            return
+
+        QMessageBox.information(
+            self,
+            "Bilgi",
+            "Önce bu model için analiz veya Monte Carlo çalıştırmalısınız."
+        )
+
+
+    def run_mc_component_importance_current(self):
+        if not self.components or not self.graph:
+            QMessageBox.warning(
+                self,
+                "Uyarı",
+                "Önce bileşenleri ve bağlantıları tanımlamalısınız."
+            )
+            return
+
+        component_paths = self._get_component_paths()
+        if not component_paths:
+            QMessageBox.warning(
+                self,
+                "Uyarı",
+                "Start ile End arasında geçerli bir bileşen yolu bulunamadı."
+            )
+            return
+
+        # Tüm model statikse MC importance anlamsız olur
+        if all(d.get("dist") == "static" for d in self.components.values()):
+            QMessageBox.information(
+                self,
+                "Bilgi",
+                "Monte Carlo component importance, dinamik dağılımlar için daha anlamlıdır."
+            )
+            return
+
+        start_time = time.perf_counter()
+
+        base_mttf, importance = monte_carlo_component_importance(
+            components=self.components,
+            component_paths=component_paths,
+            N=self.mc_spinbox.value(),
+            t_max=self.t_max_input.value(),
+            ccf=self._get_ccf_config(),
+            delta=0.10,
+            seed=42
+        )
+
+        runtime_sec = time.perf_counter() - start_time
+
+        plot_mc_component_importance(
+            importance,
+            title=f"Monte Carlo Component Importance (Base MTTF = {base_mttf:.2f})"
+        )
+
+        tab = self.tab_widget.currentWidget()
+        if tab is not None and hasattr(tab, "model_state"):
+            tab.model_state["mc_component_importance"] = {
+                "base_mttf": base_mttf,
+                "scores": importance,
+                "runtime_sec": runtime_sec
+            }
+
+        self.runtime_label.setText(f"Son çalışma süresi: {runtime_sec:.3f} s")
+
+        QMessageBox.information(
+            self,
+            "Tamamlandı",
+            f"Monte Carlo component importance tamamlandı.\n\n"
+            f"Base MTTF: {base_mttf:.2f}\n"
+            f"Runtime: {runtime_sec:.3f} s"
+        )
     def resizeEvent(self, event):
         super().resizeEvent(event)
 

@@ -461,25 +461,37 @@ def plot_mc_with_ci(t, R, R_low, R_high):
 
 
 
-def plot_hazard_rate(t, R):
+def plot_hazard_rate(t, R, title="Estimated Hazard Rate"):
+    import numpy as np
+    import matplotlib.pyplot as plt
 
-    t = np.asarray(t)
-    R = np.asarray(R)
+    t = np.asarray(t, dtype=float)
+    R = np.asarray(R, dtype=float)
 
-    dt = np.gradient(t)
-    dR = np.gradient(R)
+    mask = np.isfinite(t) & np.isfinite(R)
+    t = t[mask]
+    R = R[mask]
 
-    hazard = -dR / (R * dt)
+    if t.size < 3:
+        print("[WARN] plot_hazard_rate: yeterli veri yok.")
+        return
 
-    plt.figure(figsize=(7,4))
+    R_safe = np.clip(R, 1e-10, 1.0)
+
+    dR_dt = np.gradient(R_safe, t)
+    hazard = -dR_dt / R_safe
+
+    hazard = np.nan_to_num(hazard, nan=0.0, posinf=0.0, neginf=0.0)
+    hazard = np.maximum(hazard, 0.0)
+
+    plt.figure(figsize=(7, 4))
     plt.plot(t, hazard, linewidth=2)
     plt.xlabel("Time")
     plt.ylabel("Hazard rate h(t)")
-    plt.title("Estimated Hazard Rate")
+    plt.title(title)
     plt.grid(True, linestyle="--", alpha=0.4)
     plt.tight_layout()
     plt.show()
-
 def plot_analytic_vs_mc(t_analytic, R_analytic, t_mc, R_mc, R_low=None, R_high=None):
     import numpy as np
     import matplotlib.pyplot as plt
@@ -675,6 +687,76 @@ def plot_top_k_critical_paths(path_rts, component_paths, t_vals, k=5, title="Top
 
     for i, v in enumerate(sorted_vals):
         plt.text(v + 0.005, i, f"{v:.4f}", va="center")
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def plot_path_contributions(path_contrib, component_paths, top_k=8, title="Monte Carlo Path Contribution"):
+    import matplotlib.pyplot as plt
+
+    if not path_contrib:
+        print("[WARN] plot_path_contributions: veri yok.")
+        return
+
+    ordered = sorted(path_contrib.items(), key=lambda x: x[1], reverse=True)[:top_k]
+
+    labels = []
+    values = []
+
+    for idx, frac in ordered:
+        if idx < len(component_paths):
+            path_label = " - ".join(sorted(component_paths[idx]))
+        else:
+            path_label = f"Path {idx+1}"
+
+        labels.append(f"Path {idx+1}: {path_label}")
+        values.append(frac * 100.0)
+
+    plt.figure(figsize=(11, 0.6 * len(labels) + 2.2))
+    bars = plt.barh(range(len(values)), values)
+
+    plt.yticks(range(len(labels)), labels)
+    plt.xlabel("Contribution to System Failure (%)")
+    plt.title(title)
+    plt.gca().invert_yaxis()
+    plt.grid(axis="x", linestyle="--", alpha=0.4)
+
+    for i, v in enumerate(values):
+        plt.text(v + 0.3, i, f"{v:.2f}%", va="center")
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def plot_mc_component_importance(importance_dict, title="Monte Carlo Component Importance (ΔMTTF)"):
+    import matplotlib.pyplot as plt
+
+    if not importance_dict:
+        print("[WARN] plot_mc_component_importance: veri yok.")
+        return
+
+    ordered = sorted(importance_dict.items(), key=lambda x: x[1], reverse=True)
+
+    names = [k for k, _ in ordered]
+    values = [v for _, v in ordered]
+
+    plt.figure(figsize=(9, max(4, 0.55 * len(names) + 1.5)))
+    bars = plt.barh(range(len(values)), values)
+
+    plt.yticks(range(len(names)), names)
+    plt.xlabel("ΔMTTF")
+    plt.title(title)
+    plt.gca().invert_yaxis()
+    plt.axvline(0, color="black", linewidth=1)
+    plt.grid(axis="x", linestyle="--", alpha=0.4)
+
+    for i, v in enumerate(values):
+        x_text = v + 0.5 if v >= 0 else v - 0.5
+        ha = "left" if v >= 0 else "right"
+        plt.text(x_text, i, f"{v:.2f}", va="center", ha=ha)
 
     plt.tight_layout()
     plt.show()
